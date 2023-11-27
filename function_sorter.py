@@ -79,6 +79,21 @@ def contains_network_function(function):
 
     return False
 
+def contains_system_function(function):
+    pass
+    #TODO
+
+def contains_externals(functions):
+    pass
+    #TODO
+
+def is_compiler_created(function):
+    pass
+    #TODO
+
+def is_method(function):
+    pass
+    #TODO
 
 def is_operation(function):
     # this should be safe because it is a reserved word in c++
@@ -110,3 +125,4 @@ def start():
     print("Export completed. CSV file saved to:", outputPath)
 
 start()
+
