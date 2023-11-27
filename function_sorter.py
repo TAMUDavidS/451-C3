@@ -79,7 +79,7 @@ def start():
 
             is_unsafe = is_unsafe_function(function)
             calls_unsafe = calls_unsafe_function(function)
-	    is_potential_thunk = is_thunk(function)
+            is_potential_thunk = is_thunk(function)
 
             csvwriter.writerow([function_name, function_address, is_unsafe, calls_unsafe, is_potential_thunk])
 
