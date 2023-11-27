@@ -1,6 +1,6 @@
 #TODO write a description for this script
 #@author Table 11
-#@category Functions
+#@category 451-C3
 #@keybinding 
 #@menupath 
 #@toolbar 
@@ -41,7 +41,9 @@ IO_functions = [
     'gets', 'puts', 'read', 'write', 'open', 'close', 'fread', 'fwrite', 'fseek', 'ftell', 'rewind']
 
 file_operations = ['open', 'close', 'read', 'write', 'fread', 'fwrite', 'fseek', 'ftell', 'rewind']
-    
+
+visited = []
+
 def contains_unsafe_function(function):
     references = getReferencesTo(function.getEntryPoint())
     for reference in references:
@@ -88,7 +90,18 @@ def contains_externals(functions):
     #TODO
 
 def is_compiler_created(function):
-    pass
+    functionName = function.getName().encode('utf-8')
+    if functionName in visited:
+        print(functionName)
+        return True
+    
+    elif functionName.startswith("~"):
+        visited.append(functionName)
+        visited.append(functionName[1:])
+        print(visited)
+        return True
+    
+    return False
     #TODO
 
 def is_method(function):
@@ -103,11 +116,11 @@ def start():
     currentProgram = getCurrentProgram()
     functions = currentProgram.getFunctionManager().getFunctions(True)
     desktopDir = os.path.join(os.path.expanduser("~"), "Desktop")
-    outputPath = os.path.join(desktopDir, "functions.csv")
+    outputPath = os.path.join(desktopDir, "{}_functions.csv".format(currentProgram.getName().replace(".o","")))
 
     with open(outputPath, 'wb') as csvfile:
         csvwriter = csv.writer(csvfile)
-        csvwriter.writerow(['Function Name', 'Address', 'Contains Unsafe Function', 'Contains Thunk', 'Is Unused', 'Contains IO Function', 'Contains Network Function'])
+        csvwriter.writerow(['Function Name', 'Address', 'Contains Unsafe Function', 'Contains Thunk', 'Is Unused', 'Contains IO Function', 'Contains Network Function','Compiler Generated'])
 
         for function in functions:
             function_name = function.getName()
@@ -119,10 +132,11 @@ def start():
             is_th = is_thunk(function)
             contains_IO = contains_IO_function(function)
             contains_network = contains_network_function(function)
+            compiler_generated = is_compiler_created(function)
 
-            csvwriter.writerow([function_name, function_address, contains_unsafe, is_th, is_unused, contains_IO, contains_network])
+            csvwriter.writerow([function_name, function_address, contains_unsafe, is_th, is_unused, contains_IO, contains_network, compiler_generated])
 
-    print("Export completed. CSV file saved to:", outputPath)
+    print("Export completed. CSV file saved to: {}".format(outputPath))
 
 start()
 
