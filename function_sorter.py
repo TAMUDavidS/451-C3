@@ -42,7 +42,7 @@ IO_functions = [
 
 file_operations = ['open', 'close', 'read', 'write', 'fread', 'fwrite', 'fseek', 'ftell', 'rewind']
 
-visited = []
+visited = ['free']
 
 def contains_unsafe_function(function):
     references = getReferencesTo(function.getEntryPoint())
@@ -92,17 +92,14 @@ def contains_externals(functions):
 def is_compiler_created(function):
     functionName = function.getName().encode('utf-8')
     if functionName in visited:
-        print(functionName)
         return True
     
-    elif functionName.startswith("~"):
+    elif functionName.startswith("~") or functionName.startswith("_"):
         visited.append(functionName)
         visited.append(functionName[1:])
-        print(visited)
         return True
     
     return False
-    #TODO
 
 def is_method(function):
     pass
