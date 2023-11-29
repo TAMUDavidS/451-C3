@@ -11,6 +11,7 @@
 import csv
 import os
 from ghidra.program.flatapi import FlatProgramAPI
+from ghidra.program.model.symbol import SourceType, RefType
 
 listing = currentProgram.getListing()
 
@@ -55,8 +56,12 @@ def contains_unsafe_function(function):
 def is_thunk(function):
     instructions = listing.getInstructions(function.getEntryPoint(), True)
     if instructions.hasNext():
-        first_instruction = instructions.next()
-        return first_instruction.getMnemonicString() == "jmp"
+        instr = instructions.next()
+        for opIndex in range(instr.getNumOperands()):
+                refs = instr.getOperandReferences(opIndex)
+                for ref in refs:
+                    if ref.getReferenceType() == RefType.THUNK:
+                        return True
     return False
 
 def is_unused_function(function):
@@ -84,9 +89,35 @@ def contains_network_function(function):
 def contains_system_function(function):
     pass
     #TODO
+    
+def contains_conditional_statement(function):
+    functionBody = function.getBody()
+    for addr in functionBody.getAddresses(True):
+        instr = currentProgram.getListing().getInstructionAt(addr)
+        if instr:
+            # Check if the instruction has any external references
+            for opIndex in range(instr.getNumOperands()):
+                refs = instr.getOperandReferences(opIndex)
+                for ref in refs:
+                    if ref.getReferenceType().isConditional():
+                        return True
+    return False
 
-def contains_externals(functions):
-    pass
+
+
+def contains_externals(function):
+    functionBody = function.getBody()
+    for addr in functionBody.getAddresses(True):
+        instr = currentProgram.getListing().getInstructionAt(addr)
+        if instr:
+            # Check if the instruction has any external references
+            for opIndex in range(instr.getNumOperands()):
+                refs = instr.getOperandReferences(opIndex)
+                for ref in refs:
+                    if ref.getReferenceType().isCall() and ref.getToAddress().isExternalAddress():
+                        return True
+    
+    return False
     #TODO
 
 def is_compiler_created(function):
@@ -98,12 +129,10 @@ def is_compiler_created(function):
         visited.append(functionName)
         visited.append(functionName[1:])
         return True
+    elif is_operation(function):
+        return True
     
     return False
-
-def is_method(function):
-    pass
-    #TODO
 
 def is_operation(function):
     # this should be safe because it is a reserved word in c++
@@ -113,15 +142,17 @@ def start():
     currentProgram = getCurrentProgram()
     functions = currentProgram.getFunctionManager().getFunctions(True)
     desktopDir = os.path.join(os.path.expanduser("~"), "Desktop")
-    outputPath = os.path.join(desktopDir, "{}_functions.csv".format(currentProgram.getName().replace(".o","")))
+    # outputPath = os.path.join(desktopDir, "{}_functions.csv".format(currentProgram.getName().replace(".o","")))
+    outputPath = "C:\\college\\semesterVII\\csce451\\451-C3\\{}_function.csv".format(currentProgram.getName().replace(".o",""))
 
     with open(outputPath, 'wb') as csvfile:
         csvwriter = csv.writer(csvfile)
-        csvwriter.writerow(['Function Name', 'Address', 'Contains Unsafe Function', 'Contains Thunk', 'Is Unused', 'Contains IO Function', 'Contains Network Function','Compiler Generated'])
+        csvwriter.writerow(['Function Name', 'Address', 'Contains Unsafe Function', 'Contains Thunk', 'Is Unused', 'Contains IO Function', 'Contains Network Function','Compiler Generated', 'Contains Externals', 'Contains Conditional'])
 
         for function in functions:
             function_name = function.getName()
             function_address = function.getEntryPoint()
+            # print("{} : {}".format(function_name, function_address))
 
             contains_unsafe = contains_unsafe_function(function)
             is_op = is_operation(function)
@@ -130,8 +161,10 @@ def start():
             contains_IO = contains_IO_function(function)
             contains_network = contains_network_function(function)
             compiler_generated = is_compiler_created(function)
+            contains_external = contains_externals(function)
+            contains_conditional = contains_conditional_statement(function)
 
-            csvwriter.writerow([function_name, function_address, contains_unsafe, is_th, is_unused, contains_IO, contains_network, compiler_generated])
+            csvwriter.writerow([function_name, function_address, contains_unsafe, is_th, is_unused, contains_IO, contains_network, compiler_generated, contains_external, contains_conditional])
 
     print("Export completed. CSV file saved to: {}".format(outputPath))
 
