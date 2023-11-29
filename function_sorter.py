@@ -17,6 +17,8 @@ listing = currentProgram.getListing()
 
 networking_functions = ['socket', 'bind', 'listen', 'accept', 'connect', 'send', 'recv', 'gethostbyname', 'getaddrinfo']
 
+system_functions = ['system', 'popen', 'unlink', 'remove', 'rename', 'tmpnam', 'tempnam', 'mktemp']
+
 #not a full list, but an educated list of common unsafe c++ funcs
 unsafe_functions = [
     'strcpy', 'strcat', 'sprintf', 'vsprintf',
@@ -87,8 +89,12 @@ def contains_network_function(function):
     return False
 
 def contains_system_function(function):
-    pass
-    #TODO
+    references = getReferencesTo(function.getEntryPoint())
+    for reference in references:
+        caller_function = getFunctionContaining(reference.getFromAddress())
+        if caller_function and caller_function.getName() in system_functions:
+            return True
+    return False
     
 def contains_conditional_statement(function):
     functionBody = function.getBody()
@@ -104,7 +110,6 @@ def contains_conditional_statement(function):
     return False
 
 
-
 def contains_externals(function):
     functionBody = function.getBody()
     for addr in functionBody.getAddresses(True):
@@ -118,7 +123,6 @@ def contains_externals(function):
                         return True
     
     return False
-    #TODO
 
 def is_compiler_created(function):
     functionName = function.getName().encode('utf-8')
@@ -139,15 +143,16 @@ def is_operation(function):
     return function.getName().startswith("operator")
 
 def start():
+    #change me to generate a csv to a local folder instead.
     currentProgram = getCurrentProgram()
     functions = currentProgram.getFunctionManager().getFunctions(True)
     desktopDir = os.path.join(os.path.expanduser("~"), "Desktop")
-    # outputPath = os.path.join(desktopDir, "{}_functions.csv".format(currentProgram.getName().replace(".o","")))
-    outputPath = "C:\\college\\semesterVII\\csce451\\451-C3\\{}_function.csv".format(currentProgram.getName().replace(".o",""))
+    outputPath = os.path.join(desktopDir, "{}_functions.csv".format(currentProgram.getName().replace(".o","")))
+    #outputPath = "C:\\college\\semesterVII\\csce451\\451-C3\\{}_function.csv".format(currentProgram.getName().replace(".o",""))
 
     with open(outputPath, 'wb') as csvfile:
         csvwriter = csv.writer(csvfile)
-        csvwriter.writerow(['Function Name', 'Address', 'Contains Unsafe Function', 'Contains Thunk', 'Is Unused', 'Contains IO Function', 'Contains Network Function','Compiler Generated', 'Contains Externals', 'Contains Conditional'])
+        csvwriter.writerow(['Function Name', 'Address', 'Contains Unsafe Function', 'Is Thunk', 'Is Operation' ,'Is Unused', 'Contains IO Function', 'Contains Network Function', 'Contains System Function'])
 
         for function in functions:
             function_name = function.getName()
@@ -163,8 +168,9 @@ def start():
             compiler_generated = is_compiler_created(function)
             contains_external = contains_externals(function)
             contains_conditional = contains_conditional_statement(function)
-
-            csvwriter.writerow([function_name, function_address, contains_unsafe, is_th, is_unused, contains_IO, contains_network, compiler_generated, contains_external, contains_conditional])
+            contains_system = contains_system_function(function)
+            
+            csvwriter.writerow([function_name, function_address, contains_unsafe, is_th, is_op ,is_unused, contains_IO, contains_network, contains_system])
 
     print("Export completed. CSV file saved to: {}".format(outputPath))
 
