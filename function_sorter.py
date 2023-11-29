@@ -14,6 +14,8 @@ from ghidra.program.flatapi import FlatProgramAPI
 from ghidra.program.model.symbol import SourceType, RefType
 from java.awt import Color
 from ghidra.app.script import GhidraScript
+from ghidra.program.model.address import AddressFactory
+
 
 listing = currentProgram.getListing()
 referenceManager = currentProgram.getReferenceManager()
@@ -142,6 +144,20 @@ def highlight_row(function, color):
     for addr in functionBody.getAddresses(True):
         setBackgroundColor(addr, color)
 
+def print_csv_to_console(results):
+    for func_type, func_list in results.items():
+        for func_detail in func_list:
+            function_name, function_address = func_detail.split('@')
+            
+            # Create a clickable link to the address in the listing
+            address = currentProgram.getAddressFactory().getAddress(function_address)
+            symbol = currentProgram.getSymbolTable().createLabel(address, function_name, SourceType.USER_DEFINED)
+            symbol.setPrimary()
+
+            # Print information to the console
+            println("Function Type: {} | Function Name: {} | Function Address: {}".format(func_type, function_name, function_address))
+
+
 def start():
     currentProgram = getCurrentProgram()
     functions = currentProgram.getFunctionManager().getFunctions(True)
@@ -176,31 +192,31 @@ def start():
 
         if calling_info_unsafe:
             results["unsafe functions"].append(calling_info_unsafe)
-            highlight_row(function, Color(255, 0, 0))  # Red for unsafe functions
+            highlight_row(function, Color(255, 0, 0))  
         if is_unused:
             results["unused functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 255, 0))  # Green for unused functions
+            highlight_row(function, Color(0, 255, 0))  
         if is_op:
             results["operator functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 0, 255))  # Blue for operator functions
+            highlight_row(function, Color(0, 0, 125))  
         if calling_info_IO:
             results["IO functions"].append(calling_info_IO)
-            highlight_row(function, Color(255, 255, 0))  # Yellow for IO functions
+            highlight_row(function, Color(255, 255, 0))
         if calling_info_network:
             results["network functions"].append(calling_info_network)
-            highlight_row(function, Color(255, 0, 255))  # Magenta for network functions
+            highlight_row(function, Color(255, 0, 255))  
         if calling_info_system:
             results["system functions"].append(calling_info_system)
-            highlight_row(function, Color(0, 255, 255))  # Cyan for system functions
+            highlight_row(function, Color(0, 255, 255))  
         if contains_external:
             results["external references"].append(contains_external)
-            highlight_row(function, Color(128, 128, 128))  # Gray for external references
+            highlight_row(function, Color(128, 128, 128))
         if is_th:
             results["thunk functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(255, 165, 0))  # Orange for thunk functions
+            highlight_row(function, Color(255, 165, 0))
         if is_compiler:
             results["compiler-created functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 128, 0))  # Dark Green for compiler-created functions
+            highlight_row(function, Color(0, 128, 0))
 
     with open(outputPath, 'wb') as csvfile:
         csvwriter = csv.writer(csvfile)
@@ -212,6 +228,7 @@ def start():
                 csvwriter.writerow(row_data)
 
     print("Export completed. CSV file saved to: {}".format(outputPath))
+    print_csv_to_console(results)
 
 start()
 
