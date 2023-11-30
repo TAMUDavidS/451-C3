@@ -315,7 +315,7 @@ def start():
         if is_compiler and "compiler-created functions" in selected_functions:
             results["compiler-created functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(0, 128, 0))
-
+    #
     with open(outputPath, 'wb') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['Function Type', 'Function Details'])
