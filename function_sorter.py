@@ -5,7 +5,6 @@
 #@menupath 
 #@toolbar 
 
-
 #TODO Add User Code Here
 
 import csv
@@ -15,16 +14,19 @@ from ghidra.program.model.symbol import SourceType, RefType
 from java.awt import Color
 from ghidra.app.script import GhidraScript
 from ghidra.program.model.address import AddressFactory
+from javax.swing import JFrame, JCheckBox, JButton, JPanel
+from java.awt import BorderLayout
 
+selected_functions = {}  # Added line
 
 listing = currentProgram.getListing()
 referenceManager = currentProgram.getReferenceManager()
 
-networking_functions = ['socket', 'bind', 'listen', 'accept', 'connect', 'send', 'recv', 'gethostbyname', 'getaddrinfo']
+network_functions = ['socket', 'bind', 'listen', 'accept', 'connect', 'send', 'recv', 'gethostbyname', 'getaddrinfo']
 
 system_functions = ['system', 'popen', 'unlink', 'remove', 'rename', 'tmpnam', 'tempnam', 'mktemp']
 
-#not a full list, but an educated list of common unsafe c++ funcs
+# Not a full list, but an educated list of common unsafe c++ funcs
 unsafe_functions = [
     'strcpy', 'strcat', 'sprintf', 'vsprintf',
     'gets', 'scanf', 'fscanf', 'sscanf',
@@ -46,147 +48,55 @@ IO_functions = [
     'scanf', 'fscanf', 'sscanf', 'vscanf', 'vfscanf', 'vsscanf',
     'fopen', 'freopen', 'tmpnam', 'tempnam', 'mktemp',
     'system', 'popen', 'unlink', 'remove', 'rename',
-    'gets', 'puts', 'read', 'write', 'open', 'close', 'fread', 'fwrite', 'fseek', 'ftell', 'rewind']
+    'gets', 'puts', 'read', 'write', 'open', 'close', 'fread', 'fwrite', 'fseek', 'ftell', 'rewind'
+]
 
 file_operations = ['open', 'close', 'read', 'write', 'fread', 'fwrite', 'fseek', 'ftell', 'rewind']
 
-def is_compiler_created(function):
-    functionName = function.getName()
-    if functionName.startswith("~") or functionName.startswith("_"):
-        return True
-    return False
 
-def is_operation(function):
-    # this should be safe because it is a reserved word in c++
-    return function.getName().startswith("operator")
+class FunctionSelectionFrame(JFrame):
+    def __init__(self, function_types):
+        super(JFrame, self).__init__("Select Functions to Highlight")
 
-def is_thunk(function):
-    instructions = listing.getInstructions(function.getEntryPoint(), True)
-    if instructions.hasNext():
-        instr = instructions.next()
-        for opIndex in range(instr.getNumOperands()):
-                refs = instr.getOperandReferences(opIndex)
-                for ref in refs:
-                    if ref.getReferenceType() == RefType.THUNK:
-                        return True
-    return False
+        self.selected_functions = set()
 
-def is_unused_function(function):
-    references = referenceManager.getReferencesTo(function.getEntryPoint())
-    if not any(reference.getReferenceType().isCall() for reference in references):
-        return True
-    return False
+        # Create checkboxes for each function type
+        self.checkboxes = []
+        for function_type in function_types:
+            checkbox = JCheckBox(function_type)
+            checkbox.addItemListener(self.checkboxListener)
+            self.checkboxes.append(checkbox)
 
-#### contains functions ####
+        # Create a button to apply the selection
+        apply_button = JButton("Apply Selection", actionPerformed=self.applySelection)
 
-def contains_IO_function(function):
-    references = getReferencesTo(function.getEntryPoint())
-    for reference in references:
-        caller_function = getFunctionContaining(reference.getFromAddress())
-        if caller_function and caller_function.getName() in IO_functions:
-            return True
+        # Set up the layout
+        panel = self.getContentPane()
+        panel.setLayout(BorderLayout())
 
-    return False
+        checkbox_panel = JPanel()
+        for checkbox in self.checkboxes:
+            checkbox_panel.add(checkbox)
 
-def get_calling_function_and_address(function):
-    references = getReferencesTo(function.getEntryPoint())
-    for reference in references:
-        caller_function = getFunctionContaining(reference.getFromAddress())
-        if caller_function:
-            return "{}@{}".format(caller_function.getName(), reference.getFromAddress())
+        panel.add(checkbox_panel, BorderLayout.CENTER)
+        panel.add(apply_button, BorderLayout.SOUTH)
 
-    return None
+        # Set frame properties
+        self.setSize(300, 400)
+        self.setLocationRelativeTo(None)
+        self.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE)
 
-def contains_unsafe_function(function):
-    calling_info = get_calling_function_and_address(function)
-    if calling_info and calling_info.split('@')[0] in unsafe_functions:
-        return "{}".format(calling_info)
-    return None
+    def checkboxListener(self, event):
+        checkbox = event.getSource()
+        function_type = checkbox.getText()
 
-def contains_IO_function(function):
-    calling_info = get_calling_function_and_address(function)
-    if calling_info and calling_info.split('@')[0] in IO_functions:
-        return "{}".format(calling_info)
-    return None
+        if checkbox.isSelected():
+            self.selected_functions.add(function_type)
+        else:
+            self.selected_functions.discard(function_type)
 
-def contains_network_function(function):
-    calling_info = get_calling_function_and_address(function)
-    if calling_info and calling_info.split('@')[0] in networking_functions:
-        return "{}".format(calling_info)
-    return None
-
-def contains_system_function(function):
-    calling_info = get_calling_function_and_address(function)
-    if calling_info and calling_info.split('@')[0] in system_functions:
-        return "{}".format(calling_info)
-    return None
-
-def contains_externals(function):
-    functionBody = function.getBody()
-    for addr in functionBody.getAddresses(True):
-        instr = currentProgram.getListing().getInstructionAt(addr)
-        if instr:
-            # Check if the instruction has any external references
-            for opIndex in range(instr.getNumOperands()):
-                refs = instr.getOperandReferences(opIndex)
-                for ref in refs:
-                    if ref.getReferenceType().isCall() and ref.getToAddress().isExternalAddress():
-                        return "external references, {}@{}".format(function.getName(), addr)
-    return None
-
-def get_class(function):
-    excluded_namespaces = ['Global', '<EXTERNAL>', 'Init']
-    ns = function.getParentNamespace().getName()
-    if not ns in excluded_namespaces: 
-        # Check if part of a unique namespace
-        return ns
-    return None
-
-def contains_getter_function(function, class_info):
-    points = 0
-    calling_info = get_calling_function_and_address(function)
-
-    # Is called get
-    if 'get' in function.getName().lower():
-        points += 5
-    
-    # Is part of a class
-    if class_info:
-        points += 2
-    
-    if not function.hasNoReturn():
-        points += 3
-    
-    if function.getParameterCount() == 0:
-        points += 2
-    elif function.getParameterCount() == 1 and class_info:
-        points += 2
-
-    if points > 5:
-        return True
-    return False
-
-def contains_setter_function(function, class_info):
-    points = 0
-    calling_info = get_calling_function_and_address(function)
-
-    if 'set' in function.getName().lower():
-        points += 5
-
-    if class_info:
-        points += 2
-    
-    if function.hasNoReturn():
-        points += 3
-    
-    if function.getParameterCount() > 0:
-        points += 2
-
-    if points > 5:
-        return True
-    return False
-
-#methods for help
+    def applySelection(self, event):
+        self.dispose()
 
 def highlight_row(function, color):
     currentProgram = function.getProgram()
@@ -196,26 +106,131 @@ def highlight_row(function, color):
     for addr in functionBody.getAddresses(True):
         setBackgroundColor(addr, color)
 
-def print_csv_to_console(results):
-    for func_type, func_list in results.items():
+def print_to_console(selected_functions, results):
+    for func_type, func_list in zip(results.keys(), results.values()):
+        if len(func_list) == 0:
+            continue
         for func_detail in func_list:
-            function_name, function_address = func_detail.split('@')
-            
-            # Create a clickable link to the address in the listing
+            if isinstance(func_detail, list):
+                for detail in func_detail:
+                    print_detail(selected_functions, func_type, detail)
+            elif isinstance(func_detail, str):
+                print_detail(selected_functions, func_type, func_detail)
+
+def print_detail(selected_functions, func_type, func_detail):
+    if '@' in func_detail:
+        function_name, function_address = func_detail.split('@')
+        if function_address:
             address = currentProgram.getAddressFactory().getAddress(function_address)
-            symbol = currentProgram.getSymbolTable().createLabel(address, function_name, SourceType.USER_DEFINED)
-            symbol.setPrimary()
+            if address:
+                symbol = currentProgram.getSymbolTable().createLabel(address, function_name, SourceType.USER_DEFINED)
+                symbol.setPrimary()
+                # Print information to the console
+                println("Function Type: {} | Function Name: {} | Function Address: {}".format(func_type,
+                                                                                            function_name,
+                                                                                            function_address))
 
-            # Print information to the console
-            println("Function Type: {} | Function Name: {} | Function Address: {}".format(func_type, function_name, function_address))
+def show_results_gui(results):
+    function_types = list(results.keys())
 
+    # Create and display the custom JFrame
+    frame = FunctionSelectionFrame(function_types)
+    frame.setVisible(True)
+
+    while frame.isVisible():
+        continue
+
+    # Process the user's selection
+    global selected_functions
+    selected_functions = frame.selected_functions
+    print(selected_functions)
+    for selected_function in selected_functions:
+        if selected_function in results:
+            for func_details_list in results[selected_function]:
+                for func_detail in func_details_list:
+                    function_name, function_address = func_detail.split('@')
+                    address = currentProgram.getAddressFactory().getAddress(function_address)
+                    highlight_function(address)
+
+def is_compiler_created(function):
+    calling_info = None
+    functionName = function.getName()
+    if functionName.startswith("~") or functionName.startswith("_"):
+	calling_info = get_calling_info(function)
+    return calling_info if not None else None
+
+def is_operation(function):
+    calling_info = None
+    # this should be safe because it is a reserved word in c++
+    if function.getName().startswith("operator"):
+	calling_info = get_calling_info(function)
+    return calling_info if not None else None
+
+def is_thunk(function):
+    calling_info = None
+    instructions = listing.getInstructions(function.getEntryPoint(), True)
+    if instructions.hasNext():
+        instr = instructions.next()
+        if instr.getMnemonicString() == "JMP":
+            calling_info = get_calling_info(function)
+    return calling_info if not None else None
+
+
+def is_unused_function(function):
+    function_address = function.getEntryPoint()
+    references = referenceManager.getReferencesTo(function_address)
+    if not any(reference.getReferenceType().isCall() for reference in references) and not function.getName().startswith("_"):
+        return "{}@{}".format(function.getName(), function_address)
+    return None
+
+
+#### contains functions ####
+
+def get_calling_info(function):
+    references = getReferencesTo(function.getEntryPoint())
+    calling_info = []
+    for reference in references:
+        caller_function = getFunctionContaining(reference.getFromAddress())
+        if caller_function:
+            calling_info.append("{}@{}".format(caller_function.getName(), reference.getFromAddress()))
+
+    return calling_info if calling_info else None
+
+# Modify the contains_IO_function
+def contains_IO_function(function):
+    if function.getName() in IO_functions:
+	return None
+    calling_info = get_calling_info(function)
+    return calling_info if not None else None
+
+# Modify the contains_unsafe_function
+def contains_unsafe_function(function):
+    if function.getName() in unsafe_functions:
+	return None
+    calling_info = get_calling_info(function)
+    return calling_info if not None else None
+
+# Modify the contains_network_function
+def contains_network_function(function):
+    if function.getName() in network_functions:
+	return None
+    calling_info = get_calling_info(function)
+    return calling_info if not None else None
+
+# Modify the contains_system_function
+def contains_system_function(function):
+    if function.getName() in system_functions:
+	return None
+    calling_info = get_calling_info(function)
+    return calling_info if not None else None
+
+# methods for help
 
 def start():
     currentProgram = getCurrentProgram()
     functions = currentProgram.getFunctionManager().getFunctions(True)
     desktopDir = os.path.join(os.path.expanduser("~"), "Desktop")
-    outputPath = os.path.join(desktopDir, "{}_functions.csv".format(currentProgram.getName().replace(".o","")))
-    #outputPath = "C:\\college\\semesterVII\\csce451\\451-C3\\{}_function.csv".format(currentProgram.getName().replace(".o",""))
+    outputPath = os.path.join(desktopDir, "{}_functions.csv".format(currentProgram.getName().replace(".o", "")))
 
     results = {
         "unsafe functions": [],
@@ -226,78 +241,80 @@ def start():
         "operator functions": [],
         "thunk functions": [],
         "compiler-created functions": [],
-        "external references": [],
-        "class functions": [],
-        "getter functions": [],
-        "setter functions": []
     }
+
+    show_results_gui(results)
 
     for function in functions:
         function_name = function.getName()
         function_address = function.getEntryPoint()
-        calling_info_unsafe = contains_unsafe_function(function)
-        is_op = is_operation(function)
-        is_unused = is_unused_function(function)
-        calling_info_IO = contains_IO_function(function)
-        calling_info_network = contains_network_function(function)
-        calling_info_system = contains_system_function(function)
-        contains_external = contains_externals(function)
-        class_info = get_class(function)
-        is_th = is_thunk(function)
-        is_compiler = is_compiler_created(function)
-        is_getter = contains_getter_function(function, class_info)
-        is_setter = contains_setter_function(function, class_info)
 
-        if class_info:
-            function_name = "{}::{}".format(class_info, function_name)
-            results["class functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 128, 255))
-            function.addTag("class")
-        if calling_info_unsafe:
+        # conditional that checks if a function type is in selected, if so, call the corresponding function
+        if "unsafe functions" in selected_functions:
+            calling_info_unsafe = contains_unsafe_function(function)
+        else:
+            calling_info_unsafe = None
+
+        if "unused functions" in selected_functions:
+            is_unused = is_unused_function(function)
+        else:
+            is_unused = None
+
+        if "operator functions" in selected_functions:
+            is_op = is_operation(function)
+        else:
+            is_op = None
+
+        if "IO functions" in selected_functions:
+            calling_info_IO = contains_IO_function(function)
+        else:
+            calling_info_IO = None
+
+        if "network functions" in selected_functions:
+            calling_info_network = contains_network_function(function)
+        else:
+            calling_info_network = None
+
+        if "system functions" in selected_functions:
+            calling_info_system = contains_system_function(function)
+        else:
+            calling_info_system = None
+
+        if "thunk functions" in selected_functions:
+            is_th = is_thunk(function)
+        else:
+            is_th = None
+
+        if "compiler-created functions" in selected_functions:
+            is_compiler = is_compiler_created(function)
+        else:
+            is_compiler = None
+
+        # check if any of the calling info is not None, and highlight the row accordingly
+        if calling_info_unsafe and "unsafe functions" in selected_functions:
             results["unsafe functions"].append(calling_info_unsafe)
-            highlight_row(function, Color(255, 0, 0))  
-            function.addTag("unsafe")
-        if is_unused:
+            highlight_row(function, Color(255, 0, 0))
+        if is_unused and "unused functions" in selected_functions:
             results["unused functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 255, 0)) 
-            function.addTag("unused") 
-        if is_op:
+            highlight_row(function, Color(0, 255, 0))
+        if is_op and "operator functions" in selected_functions:
             results["operator functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 0, 128))  
-            function.addTag("operator")
-        if calling_info_IO:
+            highlight_row(function, Color(0, 0, 125))
+        if calling_info_IO and "IO functions" in selected_functions:
             results["IO functions"].append(calling_info_IO)
             highlight_row(function, Color(255, 255, 0))
-            function.addTag("IO")
-        if calling_info_network:
+        if calling_info_network and "network functions" in selected_functions:
             results["network functions"].append(calling_info_network)
-            highlight_row(function, Color(255, 0, 255)) 
-            function.addTag("network") 
-        if calling_info_system:
+            highlight_row(function, Color(255, 0, 255))
+        if calling_info_system and "system functions" in selected_functions:
             results["system functions"].append(calling_info_system)
-            highlight_row(function, Color(0, 255, 255))  
-            function.addTag("system")
-        if contains_external:
-            results["external references"].append(contains_external)
-            highlight_row(function, Color(128, 128, 128))
-            function.addTag("external")
-        if is_th:
+            highlight_row(function, Color(0, 255, 255))
+        if is_th and "thunk functions" in selected_functions:
             results["thunk functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(255, 128, 0))
-            function.addTag("thunk")
-        if is_compiler:
+            highlight_row(function, Color(255, 165, 0))
+        if is_compiler and "compiler-created functions" in selected_functions:
             results["compiler-created functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(0, 128, 0))
-            function.addTag("compiler-created")
-        if is_getter:
-            results["getter functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(128, 0, 0))
-            function.addTag("getter")
-        if is_setter:
-            results["setter functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 0, 128))
-            function.addTag("setter")
-
 
     with open(outputPath, 'wb') as csvfile:
         csvwriter = csv.writer(csvfile)
@@ -309,7 +326,6 @@ def start():
                 csvwriter.writerow(row_data)
 
     print("Export completed. CSV file saved to: {}".format(outputPath))
-    print_csv_to_console(results)
+    print_to_console(selected_functions, results)
 
 start()
-
