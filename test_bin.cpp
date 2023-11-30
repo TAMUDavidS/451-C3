@@ -43,6 +43,21 @@ void unusedFunction() {
     std::cout << "This function is never called\n";
 }
 
+class MyClass {
+    public:
+        int myfunc() {
+            return a*2;
+        }
+        int getA() {
+            return a;
+        }
+        void setA(int _a) {
+            a = _a;
+        }
+    private:
+        int a;
+};
+
 // Main function
 int main() {
     // Call I/O functions
@@ -52,6 +67,10 @@ int main() {
     // Call networking functions
     socketWrapper();
     connectWrapper();
+
+    MyClass myclass;
+    int b = myclass.myfunc() * myclass.getA();
+    myclass.setA(b);
 
     return 0;
 }

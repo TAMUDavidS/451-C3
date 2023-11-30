@@ -134,6 +134,58 @@ def contains_externals(function):
                         return "external references, {}@{}".format(function.getName(), addr)
     return None
 
+def get_class(function):
+    excluded_namespaces = ['Global', '<EXTERNAL>', 'Init']
+    ns = function.getParentNamespace().getName()
+    if not ns in excluded_namespaces: 
+        # Check if part of a unique namespace
+        return ns
+    return None
+
+def contains_getter_function(function, class_info):
+    points = 0
+    calling_info = get_calling_function_and_address(function)
+
+    # Is called get
+    if 'get' in function.getName().lower():
+        points += 5
+    
+    # Is part of a class
+    if class_info:
+        points += 2
+    
+    if not function.hasNoReturn():
+        points += 3
+    
+    if function.getParameterCount() == 0:
+        points += 2
+    elif function.getParameterCount() == 1 and class_info:
+        points += 2
+
+    if points > 5:
+        return True
+    return False
+
+def contains_setter_function(function, class_info):
+    points = 0
+    calling_info = get_calling_function_and_address(function)
+
+    if 'set' in function.getName().lower():
+        points += 5
+
+    if class_info:
+        points += 2
+    
+    if function.hasNoReturn():
+        points += 3
+    
+    if function.getParameterCount() > 0:
+        points += 2
+
+    if points > 5:
+        return True
+    return False
+
 #methods for help
 
 def highlight_row(function, color):
@@ -174,7 +226,10 @@ def start():
         "operator functions": [],
         "thunk functions": [],
         "compiler-created functions": [],
-        "external references": []
+        "external references": [],
+        "class functions": [],
+        "getter functions": [],
+        "setter functions": []
     }
 
     for function in functions:
@@ -187,9 +242,16 @@ def start():
         calling_info_network = contains_network_function(function)
         calling_info_system = contains_system_function(function)
         contains_external = contains_externals(function)
+        class_info = get_class(function)
         is_th = is_thunk(function)
         is_compiler = is_compiler_created(function)
+        is_getter = contains_getter_function(function, class_info)
+        is_setter = contains_setter_function(function, class_info)
 
+        if class_info:
+            function_name = "{}::{}".format(class_info, function_name)
+            results["class functions"].append("{}@{}".format(function_name, function_address))
+            highlight_row(function, Color(0, 128, 255))
         if calling_info_unsafe:
             results["unsafe functions"].append(calling_info_unsafe)
             highlight_row(function, Color(255, 0, 0))  
@@ -198,7 +260,7 @@ def start():
             highlight_row(function, Color(0, 255, 0))  
         if is_op:
             results["operator functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 0, 125))  
+            highlight_row(function, Color(0, 0, 128))  
         if calling_info_IO:
             results["IO functions"].append(calling_info_IO)
             highlight_row(function, Color(255, 255, 0))
@@ -213,10 +275,17 @@ def start():
             highlight_row(function, Color(128, 128, 128))
         if is_th:
             results["thunk functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(255, 165, 0))
+            highlight_row(function, Color(255, 128, 0))
         if is_compiler:
             results["compiler-created functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(0, 128, 0))
+        if is_getter:
+            results["getter functions"].append("{}@{}".format(function_name, function_address))
+            highlight_row(function, Color(128, 0, 0))
+        if is_setter:
+            results["setter functions"].append("{}@{}".format(function_name, function_address))
+            highlight_row(function, Color(0, 0, 128))
+
 
     with open(outputPath, 'wb') as csvfile:
         csvwriter = csv.writer(csvfile)
