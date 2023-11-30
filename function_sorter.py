@@ -252,39 +252,51 @@ def start():
             function_name = "{}::{}".format(class_info, function_name)
             results["class functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(0, 128, 255))
+            function.addTag("class")
         if calling_info_unsafe:
             results["unsafe functions"].append(calling_info_unsafe)
             highlight_row(function, Color(255, 0, 0))  
+            function.addTag("unsafe")
         if is_unused:
             results["unused functions"].append("{}@{}".format(function_name, function_address))
-            highlight_row(function, Color(0, 255, 0))  
+            highlight_row(function, Color(0, 255, 0)) 
+            function.addTag("unused") 
         if is_op:
             results["operator functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(0, 0, 128))  
+            function.addTag("operator")
         if calling_info_IO:
             results["IO functions"].append(calling_info_IO)
             highlight_row(function, Color(255, 255, 0))
+            function.addTag("IO")
         if calling_info_network:
             results["network functions"].append(calling_info_network)
-            highlight_row(function, Color(255, 0, 255))  
+            highlight_row(function, Color(255, 0, 255)) 
+            function.addTag("network") 
         if calling_info_system:
             results["system functions"].append(calling_info_system)
             highlight_row(function, Color(0, 255, 255))  
+            function.addTag("system")
         if contains_external:
             results["external references"].append(contains_external)
             highlight_row(function, Color(128, 128, 128))
+            function.addTag("external")
         if is_th:
             results["thunk functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(255, 128, 0))
+            function.addTag("thunk")
         if is_compiler:
             results["compiler-created functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(0, 128, 0))
+            function.addTag("compiler-created")
         if is_getter:
             results["getter functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(128, 0, 0))
+            function.addTag("getter")
         if is_setter:
             results["setter functions"].append("{}@{}".format(function_name, function_address))
             highlight_row(function, Color(0, 0, 128))
+            function.addTag("setter")
 
 
     with open(outputPath, 'wb') as csvfile:
