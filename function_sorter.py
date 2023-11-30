@@ -156,14 +156,14 @@ def is_compiler_created(function):
     calling_info = None
     functionName = function.getName()
     if functionName.startswith("~") or functionName.startswith("_"):
-	calling_info = get_calling_info(function)
+        calling_info = get_calling_info(function)
     return calling_info if not None else None
 
 def is_operation(function):
     calling_info = None
     # this should be safe because it is a reserved word in c++
     if function.getName().startswith("operator"):
-	calling_info = get_calling_info(function)
+        calling_info = get_calling_info(function)
     return calling_info if not None else None
 
 def is_thunk(function):
@@ -199,28 +199,28 @@ def get_calling_info(function):
 # Modify the contains_IO_function
 def contains_IO_function(function):
     if function.getName() in IO_functions:
-	return None
+        return None
     calling_info = get_calling_info(function)
     return calling_info if not None else None
 
 # Modify the contains_unsafe_function
 def contains_unsafe_function(function):
     if function.getName() in unsafe_functions:
-	return None
+        return None
     calling_info = get_calling_info(function)
     return calling_info if not None else None
 
 # Modify the contains_network_function
 def contains_network_function(function):
     if function.getName() in network_functions:
-	return None
+        return None
     calling_info = get_calling_info(function)
     return calling_info if not None else None
 
 # Modify the contains_system_function
 def contains_system_function(function):
     if function.getName() in system_functions:
-	return None
+        return None
     calling_info = get_calling_info(function)
     return calling_info if not None else None
 
